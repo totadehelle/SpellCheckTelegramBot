@@ -1,10 +1,10 @@
-﻿using System;
-using Bot.Models;
+﻿using Bot.Models;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using static System.String;
 
 namespace Bot.Controllers
 {
@@ -34,7 +34,7 @@ namespace Bot.Controllers
 		    if (message?.Type == MessageType.Text)
 		    {
 			    var response = model.SpellCheck(message.Text);
-			    if (!string.IsNullOrEmpty(response))
+			    if (!IsNullOrEmpty(response))
 			    {
 				    await client.SendTextMessageAsync(message.Chat.Id, response);
 				}
@@ -45,7 +45,7 @@ namespace Bot.Controllers
 	    {
 		    TelegramBotClient client = new TelegramBotClient(AppConfig.KEY);
 		    var info = client.GetWebhookInfoAsync().Result;
-		    if (String.IsNullOrEmpty(info.Url))
+		    if (info.Url != AppConfig.URL)
 		    {
 			    client.SetWebhookAsync(AppConfig.URL).Wait();
 		    }

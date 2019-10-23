@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using WeCantSpell.Hunspell;
@@ -8,12 +9,17 @@ namespace Bot.Models
 	public class SpellCheckModel
 	{
 		private readonly IWebHostEnvironment _appEnvironment;
-		private readonly WordList _dictionary;
+		private readonly WordList _dictionaryEn;
+		private readonly WordList _dictionaryRu;
+		private readonly Regex _notAlphaRegex = new Regex(@"[^A-ZА-ЯЁ -]", RegexOptions.IgnoreCase);
+		private readonly Regex _isLatinAndCyrillic = new Regex(@"\b(?=\w*[A-Z])(?=\w*[А-ЯЁ]).+\b", RegexOptions.IgnoreCase);
+		private readonly Regex _isLatin = new Regex(@"[A-Z]+", RegexOptions.IgnoreCase);
 
 		public SpellCheckModel(IWebHostEnvironment appEnvironment)
 		{
 			_appEnvironment = appEnvironment;
-			_dictionary = WordList.CreateFromFiles(_appEnvironment.WebRootPath + "/ru_RU.dic");
+			_dictionaryRu = WordList.CreateFromFiles(_appEnvironment.WebRootPath + "/ru_RU.dic");
+			_dictionaryEn = WordList.CreateFromFiles(_appEnvironment.WebRootPath + "/en_GB.dic");
 		}
 		public string SpellCheck(string message)
 		{
@@ -23,18 +29,25 @@ namespace Bot.Models
 
 			foreach (var word in words)
 			{
-				var cleanWord = word.Trim(new char[]
-				{
-					'.', ',', '!', '?', ';', ':', '-', ' ', '*',
-					'@', '#', '№', '$', '%', '^','&','"', '/', '`', '~',
-					'(', ')', '[', ']', '{','}', '\n'
-				});
+				//delete all not alphabetical characters
+				var cleanWord = _notAlphaRegex.Replace(word, "");
+
 				if (!string.IsNullOrEmpty(cleanWord))
 				{
-					bool isCorrect = _dictionary.Check(cleanWord);
+					//if the word contains both latin and cyrillic characters, it should be ignored
+					if (_isLatinAndCyrillic.Match(cleanWord).Success)
+					{
+						continue;
+					}
+					
+					var dictionary = _isLatin.Match(cleanWord).Success 
+						? _dictionaryEn 
+						: _dictionaryRu;
+					
+					bool isCorrect = dictionary.Check(cleanWord);
 					if (!isCorrect)
 					{
-						var recommended = _dictionary.Suggest(cleanWord);
+						var recommended = dictionary.Suggest(cleanWord);
 						var checkerMessage = $"Неправильно: {cleanWord}. Варианты правильного написания: ";
 						foreach (var recommendation in recommended)
 						{
