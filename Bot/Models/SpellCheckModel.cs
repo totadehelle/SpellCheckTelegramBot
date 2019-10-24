@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using WeCantSpell.Hunspell;
@@ -14,6 +15,7 @@ namespace Bot.Models
 		private readonly Regex _isLatinAndCyrillic = new Regex(@"\b(?=\w*[A-Z])(?=\w*[А-ЯЁ]).+\b", RegexOptions.IgnoreCase);
 		private readonly Regex _isLatin = new Regex(@"[A-Z]+", RegexOptions.IgnoreCase);
 		private readonly Regex _isNewLine = new Regex(@"[\n]+");
+		private readonly Regex _isLeadingHyphen = new Regex(@"^[-]+");
 
 		public SpellCheckModel(IWebHostEnvironment appEnvironment)
 		{
@@ -23,37 +25,44 @@ namespace Bot.Models
 		}
 		public string SpellCheck(string message)
 		{
+			string fullResponse = null;
+			if (message == null)
+				return fullResponse;
 			var cleanMessage = _notAlphabetical.Replace(message, "");
 			cleanMessage = _isNewLine.Replace(cleanMessage, " ");
 			var words = cleanMessage.Split(' ');
 			var corrected = new List<string>();
-			string fullResponse = null;
 
 			foreach (var word in words)
 			{
-				//delete all not alphabetical characters
-				if (!string.IsNullOrEmpty(word))
+				var cleanWord = _isLeadingHyphen.Replace(word, "");
+				if (!string.IsNullOrEmpty(cleanWord))
 				{
 					//if the word contains both latin and cyrillic characters, it should be ignored
-					if (_isLatinAndCyrillic.IsMatch(word))
+					if (_isLatinAndCyrillic.IsMatch(cleanWord))
 					{
 						continue;
 					}
 					
-					var dictionary = _isLatin.IsMatch(word)
+					var dictionary = _isLatin.IsMatch(cleanWord)
 						? _dictionaryEn 
 						: _dictionaryRu;
 					
-					bool isCorrect = dictionary.Check(word);
+					bool isCorrect = dictionary.Check(cleanWord);
 					if (!isCorrect)
 					{
-						var recommended = dictionary.Suggest(word);
-						var checkerMessage = $"Неправильно: {word}. Варианты правильного написания: ";
-						foreach (var recommendation in recommended)
+						var recommended = dictionary.Suggest(cleanWord);
+						var checkerMessage = $"Неправильно: {cleanWord}. Правильно: ";
+						if (recommended.Count() == 0)
+							checkerMessage += "нет вариантов";
+						else
 						{
-							checkerMessage = checkerMessage + recommendation + ", ";
+							foreach (var recommendation in recommended)
+							{
+								checkerMessage = checkerMessage + recommendation + ", ";
+							}
+							checkerMessage = checkerMessage.TrimEnd(new char[] { ',', ' ' });
 						}
-						checkerMessage = checkerMessage.TrimEnd(new char[] { ',', ' ' });
 						corrected.Add(checkerMessage);
 					}
 				}
